@@ -1,3 +1,6 @@
+-- Todos los derechos reservados © Juan Fernando Martínez Ruiz - Junio 2025
+-- All rights reserved © Juan Fernando Martínez Ruiz - June 2025
+
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 
