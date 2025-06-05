@@ -181,7 +181,7 @@ begin
                                      else siguiente_estado <= CALCULANDO; end if;
             when ABRIENDO_PUERTA  => siguiente_estado <= ESPERANDO_PUERTA;
 
-            -- ⚠️ Sensor IR impide cierre si detecta obstáculo (sensor_ir = '0')
+            -- Sensor IR impide cierre si detecta obstáculo (sensor_ir = '0')
             when ESPERANDO_PUERTA =>
                 if cont_puerta < 250000000 or sensor_ir = '0' then
                     siguiente_estado <= ESPERANDO_PUERTA;
@@ -201,8 +201,6 @@ begin
         end case;
     end process;
 
-    -- TODO EL RESTO (se mantiene sin cambios y se puede usar tal como está en tu código actual)
-    -- Solo recuerda: las señales `ledR` y FSM `ESPERANDO_PUERTA` ya tienen el comportamiento invertido del sensor
 
     --------------------------------------------------------------------------
     -- Salidas de estado (resumen)
