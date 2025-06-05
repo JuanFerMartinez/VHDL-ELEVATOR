@@ -1,4 +1,4 @@
-# 🛗 Proyecto VHDL - Sistema de Control de Ascensor
+# Proyecto VHDL - Sistema de Control de Ascensor
 
 Este repositorio contiene la implementación completa de un sistema de control de ascensor digital utilizando VHDL, orientado a plataformas FPGA como la DE0 con Cyclone III. El diseño incluye control de movimiento entre 5 pisos, detección de sobrepeso, manejo de corte de energía, cola de llamadas mediante memoria RAM y control PWM para motores del ascensor y puerta.
 
