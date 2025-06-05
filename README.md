@@ -76,7 +76,7 @@ VHDL-ELEVATOR/
 ├── display_7seg_piso.vhd               # Visualización de piso actual
 ├── tb_top_ascensor.vhd                 # Banco de pruebas
 ├── DiagramaDeEstadosAscensor.drawio.png  # Imagen FSM
-└── └─contador_personas.vhd             # Modulo contador de personas con IR (no implementado)
+└─contador_personas.vhd             # Modulo contador de personas con IR (no implementado)
 └── README.md                           # Este archivo
 ```
 
