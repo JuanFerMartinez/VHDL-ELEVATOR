@@ -74,8 +74,9 @@ VHDL-ELEVATOR/
 ├── motor_puerta.vhd                    # PWM para motor de puerta
 ├── ram_llamadas.vhd                    # RAM FIFO para llamadas
 ├── display_7seg_piso.vhd               # Visualización de piso actual
-├── top_test.vhd                        # Banco de pruebas
+├── tb_top_ascensor.vhd                 # Banco de pruebas
 ├── DiagramaDeEstadosAscensor.drawio.png  # Imagen FSM
+└── └─contador_personas.vhd             # Modulo contador de personas con IR (no implementado)
 └── README.md                           # Este archivo
 ```
 
