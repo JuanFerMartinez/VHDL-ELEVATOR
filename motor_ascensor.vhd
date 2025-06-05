@@ -1,48 +1,65 @@
+-- ============================================================================
+-- ARCHIVO: motor_ascensor.vhd
+-- DESCRIPCIÓN: Módulo para generar una señal PWM de control de dirección 
+--              para un motor (o servo) que mueve el ascensor. La duración del 
+--              pulso determina la dirección del movimiento: subir o bajar.
+-- AUTOR: Juan Fernando Martínez Ruiz © 2025
+-- ============================================================================
+
+-- ============================================================================
 -- Todos los derechos reservados © Juan Fernando Martínez Ruiz - Junio 2025
 -- All rights reserved © Juan Fernando Martínez Ruiz - June 2025
+-- ============================================================================
 
 library IEEE;
-use IEEE.STD_LOGIC_1164.ALL;       -- Librería estándar de lógica digital
-use IEEE.STD_LOGIC_ARITH.ALL;      -- Librería para operaciones aritméticas
-use IEEE.STD_LOGIC_UNSIGNED.ALL;   -- Permite trabajar con STD_LOGIC_VECTOR como enteros sin signo
+use IEEE.STD_LOGIC_1164.ALL;       -- Librería de lógica digital estándar
+use IEEE.STD_LOGIC_ARITH.ALL;      -- Librería para operaciones aritméticas extendidas
+use IEEE.STD_LOGIC_UNSIGNED.ALL;   -- Permite operaciones con vectores como enteros sin signo
 
--- Entidad: motor_ascensor
--- Genera una señal PWM para controlar un motor de ascensor mediante servomotor.
--- El ancho del pulso determina si el motor sube o baja.
+-- ======================= ENTIDAD =======================
+-- Módulo que genera un pulso PWM de 20 ms de período (frecuencia 50 Hz)
+-- para controlar la dirección de movimiento del motor del ascensor.
 entity motor_ascensor is
     Port (
-        clk          : in  STD_LOGIC;      -- Reloj de entrada (50 MHz)
-        reset        : in  STD_LOGIC;      -- Señal de reinicio asíncrono
-        subir        : in  STD_LOGIC;      -- Dirección del movimiento: '1' = subir, '0' = bajar
-        pwm_motor    : out STD_LOGIC       -- Señal PWM para el servo o motor controlado
+        clk          : in  STD_LOGIC;      -- Señal de reloj del sistema (50 MHz)
+        reset        : in  STD_LOGIC;      -- Reinicio asíncrono del sistema
+        subir        : in  STD_LOGIC;      -- Dirección del movimiento: 
+                                           -- '1' = subir (2 ms), '0' = bajar (1 ms)
+        pwm_motor    : out STD_LOGIC       -- Salida PWM hacia el controlador del motor
     );
 end motor_ascensor;
 
+-- ======================= ARQUITECTURA =======================
 architecture Behavioral of motor_ascensor is
-    -- Contador para generar el ciclo PWM de 20 ms (1.000.000 ciclos con clk = 50 MHz)
+
+    -- ======================= SEÑALES INTERNAS =======================
+    -- Contador para determinar el ciclo completo de 20 ms (20 ms × 50 MHz = 1 000 000 ciclos)
     signal contador     : integer range 0 to 1000000 := 0;
 
-    -- Ancho del pulso (duty cycle) del PWM: 
-    -- 50000 = 1 ms (bajar), 75000 = neutro, 100000 = 2 ms (subir)
-    signal ancho_pulso  : integer := 75000;
+    -- Variable que representa el tiempo activo del pulso PWM dentro del periodo:
+    --  50000 ciclos (1 ms): bajar
+    -- 100000 ciclos (2 ms): subir
+    signal ancho_pulso  : integer := 75000;  -- Valor inicial neutro
+
 begin
 
-    -- Proceso que actualiza el ancho del pulso y cuenta el tiempo para el PWM
+    -- ======================= PROCESO DE PWM =======================
+    -- Este proceso actualiza el ancho del pulso de la señal PWM en cada flanco de reloj
     process(clk, reset)
     begin
         if reset = '1' then
-            -- Reinicio de sistema: valores iniciales
+            -- Estado de reinicio del sistema
             contador <= 0;
-            ancho_pulso <= 75000;  -- Pulso neutro al iniciar
+            ancho_pulso <= 75000;  -- Neutro (1.5 ms)
         elsif rising_edge(clk) then
-            -- Determinar ancho del pulso dependiendo de la señal 'subir'
+            -- Selección del ancho de pulso según la dirección del movimiento
             if subir = '1' then
-                ancho_pulso <= 100000;  -- 2 ms: dirección subir
+                ancho_pulso <= 100000;  -- Subir: pulso de 2 ms
             else
-                ancho_pulso <= 50000;   -- 1 ms: dirección bajar
+                ancho_pulso <= 50000;   -- Bajar: pulso de 1 ms
             end if;
 
-            -- Contador que determina el periodo completo del PWM (20 ms)
+            -- Actualización del contador dentro del periodo de 20 ms
             if contador < 1000000 then
                 contador <= contador + 1;
             else
@@ -51,7 +68,8 @@ begin
         end if;
     end process;
 
-    -- Salida PWM: pulso activo ('1') si el contador está dentro del ancho de pulso definido
+    -- ======================= SALIDA PWM =======================
+    -- La señal pwm_motor se mantiene en '1' mientras el contador esté dentro del ancho del pulso
     pwm_motor <= '1' when contador < ancho_pulso else '0';
 
 end Behavioral;
