@@ -20,39 +20,119 @@ use IEEE.STD_LOGIC_UNSIGNED.ALL;
 -- ======================= ENTIDAD PRINCIPAL =======================
 entity top_ascensor is
     Port (
-        clk_50MHz      : in  STD_LOGIC;                        -- Reloj principal a 50 MHz
-        llamada_p1     : in  STD_LOGIC;                        -- Botón de llamada desde piso 1
-        llamada_p2     : in  STD_LOGIC;                        -- Botón de llamada desde piso 2
-        llamada_p3     : in  STD_LOGIC;                        -- Botón de llamada desde piso 3
-        llamada_p4     : in  STD_LOGIC;                        -- Botón de llamada desde piso 4
-        llamada_p5     : in  STD_LOGIC;                        -- Botón de llamada desde piso 5
-        abrir_manual   : in  STD_LOGIC;                        -- Botón para apertura manual de puerta
-        cerrar_manual  : in  STD_LOGIC;                        -- Botón para cierre manual de puerta
-        personas_sw    : in  STD_LOGIC_VECTOR(3 downto 0);     -- Cantidad de personas (0-15)
-        corte_energia  : in  STD_LOGIC;                        -- Entrada de corte de energía (1 = apagado)
-        sensor_ir      : in  STD_LOGIC;                        -- Sensor IR FC-51 (0 = obstáculo detectado)
-        pwm_out_motor  : out STD_LOGIC;                        -- Salida PWM para motor principal
-        pwm_out_puerta : out STD_LOGIC;                        -- Salida PWM para servo de puerta
-        seg_p          : out STD_LOGIC_VECTOR(6 downto 0);     -- Display de 7 segmentos para letra "P"
-        seg_n          : out STD_LOGIC_VECTOR(6 downto 0);     -- Display de 7 segmentos para número de piso
-        ledR           : out STD_LOGIC;                        -- LED rojo encendido en alarma o detección IR
-        buzzer         : out STD_LOGIC;                        -- Buzzer encendido si hay alarma
-        ledA           : out STD_LOGIC                         -- LED ámbar encendido si se mueve o hay personas
+        clk_50MHz      : in  STD_LOGIC; -- Reloj de 50 MHz
+        llamada_p1     : in  STD_LOGIC; -- Botón de llamado desde piso 1
+        llamada_p2     : in  STD_LOGIC; -- Botón de llamado desde piso 2
+        llamada_p3     : in  STD_LOGIC; -- Botón de llamado desde piso 3
+        llamada_p4     : in  STD_LOGIC; -- Botón de llamado desde piso 4
+        llamada_p5     : in  STD_LOGIC; -- Botón de llamado desde piso 5
+        abrir_manual   : in  STD_LOGIC; -- Apertura manual de puerta
+        cerrar_manual  : in  STD_LOGIC; -- Cierre manual de puerta
+        personas_sw    : in  STD_LOGIC_VECTOR(3 downto 0); -- Número de personas
+        corte_energia  : in  STD_LOGIC; -- Corte de energía
+        sensor_ir      : in  STD_LOGIC; -- Sensor IR FC-51 para detección de obstáculos
+        pwm_out_motor  : out STD_LOGIC; -- Señal PWM al motor del ascensor
+        pwm_out_puerta : out STD_LOGIC; -- Señal PWM al servo de la puerta
+        seg_p          : out STD_LOGIC_VECTOR(6 downto 0); -- Display 'P'
+        seg_n          : out STD_LOGIC_VECTOR(6 downto 0); -- Display del número de piso
+        ledR           : out STD_LOGIC; -- LED rojo (alarma o presencia IR)
+        buzzer         : out STD_LOGIC; -- Buzzer de alarma
+        ledA           : out STD_LOGIC  -- LED ámbar (movimiento o personas presentes)
     );
 end top_ascensor;
 
 -- ======================= ARQUITECTURA =======================
 architecture Behavioral of top_ascensor is
 
-    -- Declaración de señales internas omitida por brevedad
+    -- ======================= SEÑALES INTERNAS =======================
+    signal pwm_motor        : STD_LOGIC; -- Señal interna PWM del motor principal
+    signal pwm_puerta       : STD_LOGIC; -- Señal interna PWM del servomotor de puerta
+    signal subir            : STD_LOGIC := '1'; -- Dirección del movimiento (subir = '1')
+    signal mover            : STD_LOGIC := '0'; -- Control de movimiento del motor principal
+    signal mover_puerta     : STD_LOGIC := '0'; -- Control de movimiento de la puerta
+    signal puerta_abierta   : STD_LOGIC := '0'; -- Estado de puerta (abierta = '1')
+    signal piso_actual      : integer range 1 to 5 := 1; -- Piso donde se encuentra el ascensor
+    signal piso_destino     : integer range 1 to 5 := 1; -- Piso destino
+    signal contador         : integer range 0 to 200000000 := 0; -- Contador de ciclos de movimiento
+    signal cont_puerta      : integer range 0 to 250000000 := 0; -- Contador para espera con puerta abierta
+    signal cont_puerta_pwm  : integer range 0 to 50000000 := 0; -- Duración PWM puerta
+    signal num_personas     : integer range 0 to 15 := 0; -- Cantidad de personas detectadas por los switches
+    signal contador_backup  : integer range 0 to 200000000 := 0; -- Copia del contador en caso de corte de energía
+    signal volver_a_mover   : STD_LOGIC := '0'; -- Señal que indica si debe continuar movimiento tras apagado
+    signal alarma           : STD_LOGIC := '0'; -- Alarma activa (sobrepeso o corte energía)
+    signal prev_p1, prev_p2, prev_p3, prev_p4, prev_p5 : STD_LOGIC := '0'; -- Antirebote para botones
+    signal prev_abrir, prev_cerrar : STD_LOGIC := '0'; -- Antirebote para control de puerta
+    signal ram_we, ram_re : STD_LOGIC := '0'; -- Señales de escritura y lectura en RAM
+    signal ram_data_in : STD_LOGIC_VECTOR(2 downto 0); -- Piso a guardar en RAM
+    signal ram_data_out : STD_LOGIC_VECTOR(2 downto 0); -- Piso leído desde RAM
+    signal ram_empty, ram_full : STD_LOGIC; -- Estados de RAM FIFO
+    signal leyendo_llamada : STD_LOGIC := '0'; -- Indica si ya se leyó un destino de RAM
+
+    -- ======================= ESTADOS DE LA FSM =======================
+    type estado_ascensor is (
+        ESPERANDO, LEYENDO_RAM, CALCULANDO, MOVIENDO, ACTUALIZANDO,
+        VERIFICAR, ABRIENDO_PUERTA, ESPERANDO_PUERTA, CERRANDO_PUERTA, SOBREPESO, APAGADO
+    );
+    signal estado_actual, siguiente_estado : estado_ascensor := ESPERANDO;
+
+    -- ======================= COMPONENTES =======================
+    component motor_ascensor
+        Port (
+            clk       : in  STD_LOGIC;
+            reset     : in  STD_LOGIC;
+            subir     : in  STD_LOGIC;
+            pwm_motor : out STD_LOGIC
+        );
+    end component;
+
+    component motor_puerta
+        Port (
+            clk            : in  STD_LOGIC;
+            reset          : in  STD_LOGIC;
+            puerta_abierta : in  STD_LOGIC;
+            pwm_servo      : out STD_LOGIC
+        );
+    end component;
+
+    component display_7seg_piso
+        Port (
+            piso_actual : in  integer range 1 to 5;
+            display_p   : out STD_LOGIC_VECTOR(6 downto 0);
+            display_n   : out STD_LOGIC_VECTOR(6 downto 0)
+        );
+    end component;
+
+    component ram_llamadas
+        Port (
+            clk      : in  STD_LOGIC;
+            reset    : in  STD_LOGIC;
+            we       : in  STD_LOGIC;
+            re       : in  STD_LOGIC;
+            data_in  : in  STD_LOGIC_VECTOR(2 downto 0);
+            data_out : out STD_LOGIC_VECTOR(2 downto 0);
+            empty    : out STD_LOGIC;
+            full     : out STD_LOGIC
+        );
+    end component;
 
 begin
 
-    -- Conversión del número de personas desde entrada binaria
-    num_personas <= CONV_INTEGER(personas_sw);
+    -- ======================= INSTANCIACIÓN DE COMPONENTES =======================
+    num_personas <= CONV_INTEGER(personas_sw); -- Conversión del número de personas a entero
 
-    -- Instanciación de componentes
-    -- (omitiendo detalles para enfocarnos en procesos)
+    U1: motor_ascensor port map (clk => clk_50MHz, reset => '0', subir => subir, pwm_motor => pwm_motor);
+    U2: motor_puerta   port map (clk => clk_50MHz, reset => '0', puerta_abierta => puerta_abierta, pwm_servo => pwm_puerta);
+    U3: display_7seg_piso port map (piso_actual => piso_actual, display_p => seg_p, display_n => seg_n);
+    U4: ram_llamadas port map (
+        clk => clk_50MHz,
+        reset => '0',
+        we => ram_we,
+        re => ram_re,
+        data_in => ram_data_in,
+        data_out => ram_data_out,
+        empty => ram_empty,
+        full => ram_full
+    );
 
     -- Registro de estado actual de la FSM
     process(clk_50MHz)
